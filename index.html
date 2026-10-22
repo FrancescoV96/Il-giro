@@ -97,6 +97,16 @@ details summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 .pin.dep { background: var(--accent); color: var(--accent-ink); }
 .found { background: var(--ok-soft); color: var(--ok); border-radius: 10px; padding: 8px 10px; font-size: 15px; }
 .found.warn { background: var(--warn-soft); color: var(--warn); }
+.picker { display: grid; gap: 8px; }
+.qwrap { position: relative; }
+.sug { list-style: none; margin: 4px 0 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.sug:empty { display: none; }
+.sug button { width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); padding: 10px 12px; font: 400 16px var(--font-body); color: var(--ink); cursor: pointer; display: grid; gap: 2px; }
+.sug li:first-child button { border-top: 0; }
+.sug button:hover, .sug button:focus-visible { background: var(--bg); outline: none; }
+.sug .kind { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+.sug .msg { padding: 10px 12px; color: var(--muted); font-size: 15px; }
+.pmap { height: 240px; border-radius: 10px; border: 1px solid var(--line); z-index: 0; }
 </style>
 </head>
 <body>
@@ -305,9 +315,11 @@ function drawMap() {
 function render() {
   document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === S.view)));
   if (map) { map.remove(); map = null; }
+  destroyPicker("d");
   const v = $("#view");
   v.innerHTML = S.view === "giro" ? viewGiro() : S.view === "clienti" ? viewClienti() : viewImpostazioni();
   if (S.view === "giro" && S.giro.ordered) drawMap();
+  if (S.view === "impostazioni") initPicker("d", S.depot || {});
 }
 function chipFor(s) {
   const c = stopPlace(s);
@@ -469,42 +481,105 @@ function viewImpostazioni() {
   </section>
   <section class="panel">
     <h2>Posizione precisa di un cliente</h2>
-    <p class="hint">Se l'indirizzo non basta (zona industriale, ingresso sul retro): apri Google Maps, tieni premuto il dito sul punto esatto di scarico, tocca i due numeri che compaiono in alto per copiarli e incollali nel campo Posizione del cliente.</p>
+    <p class="hint">Nella scheda del cliente cerca il posto e controlla il puntino sulla mappa: se non è sul punto di scarico (ingresso sul retro, zona industriale), trascinalo o tocca la mappa nel punto giusto. In alternativa, da Google Maps tocca Condividi sul posto e incolla qui il testo copiato.</p>
   </section>`;
 }
 function placeFields(p, d, isClient) {
   return `
     <label for="${p}-nome">Nome${isClient ? " del cliente" : ""}<input id="${p}-nome" value="${esc(d.nome || "")}" placeholder="${isClient ? "Es. Bar Centrale" : "Es. Magazzino"}"></label>
     ${isClient ? `<label for="${p}-alias">Altri nomi <small>Come può comparire nella lista, separati da virgola</small><input id="${p}-alias" value="${esc((d.alias || []).join(", "))}"></label>` : ""}
-    <label for="${p}-ind">Indirizzo<input id="${p}-ind" value="${esc(d.indirizzo || "")}" placeholder="Via e numero civico"></label>
-    <label for="${p}-citta">Città<input id="${p}-citta" value="${esc(d.citta || "")}" placeholder="Es. Bitonto"></label>
-    <label for="${p}-pos">Posizione <small>Si trova da sola dall'indirizzo, oppure incolla le coordinate da Google Maps</small><input id="${p}-pos" value="${hasPos(d) ? `${d.lat}, ${d.lng}` : ""}" placeholder="41.0952, 16.6890" inputmode="decimal"></label>
-    <input type="hidden" id="${p}-precisa" value="${d.precisa ? "1" : ""}">
-    <div id="${p}-found"></div>
-    <div class="row">
-      <button class="btn small" data-act="find" data-prefix="${p}">Trova dall'indirizzo</button>
-      <button class="btn small" data-act="check-map" data-prefix="${p}">Controlla su Maps</button>
+    <div class="picker">
+      <label for="${p}-q">Dove si trova <small>Scrivi nome dell'attività o indirizzo e scegli dai suggerimenti. Puoi anche incollare un link o le coordinate di Google Maps.</small></label>
+      <div class="qwrap"><input id="${p}-q" type="search" autocomplete="off" placeholder="Es. Via Matteotti 12 Terlizzi"><ul class="sug" id="${p}-sug"></ul></div>
+      <div class="pmap" id="${p}-map" aria-label="Mappa per indicare il punto di scarico"></div>
+      <div id="${p}-found">${hasPos(d) ? precisionBox(d.precisa) : `<div class="found warn">Nessuna posizione ancora: cerca il posto qui sopra oppure tocca la mappa nel punto giusto.</div>`}</div>
+      <input type="hidden" id="${p}-lat" value="${hasPos(d) ? d.lat : ""}">
+      <input type="hidden" id="${p}-lng" value="${hasPos(d) ? d.lng : ""}">
+      <input type="hidden" id="${p}-precisa" value="${d.precisa ? "1" : ""}">
     </div>
+    <div class="grid2">
+      <label for="${p}-ind">Indirizzo<input id="${p}-ind" value="${esc(d.indirizzo || "")}" placeholder="Via e civico"></label>
+      <label for="${p}-citta">Città<input id="${p}-citta" value="${esc(d.citta || "")}" placeholder="Es. Bitonto"></label>
+    </div>
+    <div class="row"><button class="btn small" data-act="check-map" data-prefix="${p}">Controlla su Google Maps</button></div>
     ${isClient ? `<label for="${p}-note">Note per la consegna<input id="${p}-note" value="${esc(d.note || "")}" placeholder="Es. scarico dal retro, chiude alle 13"></label>` : ""}`;
 }
 function readPlace(p) {
   const v = id => ($("#" + p + "-" + id)?.value || "").trim();
-  const pos = parseCoords(v("pos"));
   const out = { nome: v("nome"), indirizzo: v("ind"), citta: v("citta") };
   if (p === "c") { out.note = v("note"); out.alias = v("alias").split(",").map(s => s.trim()).filter(Boolean); }
-  if (pos) { out.lat = pos.lat; out.lng = pos.lng; out.precisa = v("precisa") === "1"; }
+  const lat = parseFloat(v("lat")), lng = parseFloat(v("lng"));
+  if (isFinite(lat) && isFinite(lng)) { out.lat = lat; out.lng = lng; out.precisa = v("precisa") === "1"; }
   return out;
 }
-async function findInto(p) {
-  const d = readPlace(p);
-  if (!d.indirizzo && !d.citta) { toast("Scrivi almeno indirizzo o città."); return null; }
-  const r = await geocode(d);
-  const box = $("#" + p + "-found");
-  if (!r) { if (box) box.innerHTML = `<div class="found warn">Indirizzo non trovato. Controlla com'è scritto oppure incolla le coordinate da Google Maps.</div>`; return null; }
-  $("#" + p + "-pos").value = `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`;
-  $("#" + p + "-precisa").value = r.precise ? "1" : "";
-  if (box) box.innerHTML = `<div class="found ${r.precise ? "" : "warn"}">${r.precise ? "Trovato" : "Trovato solo in modo approssimativo"}: ${esc(r.label)}</div>`;
-  return r;
+
+// ---------- location picker: suggestions + draggable pin + Google Maps links ----------
+function precisionBox(precise) {
+  return precise
+    ? `<div class="found">Posizione precisa. Se serve, trascina il puntino sul punto di scarico.</div>`
+    : `<div class="found warn">Posizione approssimativa (centro della via o del paese). Trascina il puntino o tocca la mappa sul punto esatto.</div>`;
+}
+const pickers = {};
+function destroyPicker(p) { if (pickers[p]) { pickers[p].map.remove(); clearTimeout(pickers[p].timer); delete pickers[p]; } }
+function setPin(p, lat, lng, precise, zoom) {
+  const pk = pickers[p]; if (!pk) return;
+  $("#" + p + "-lat").value = lat.toFixed(6); $("#" + p + "-lng").value = lng.toFixed(6);
+  $("#" + p + "-precisa").value = precise ? "1" : "";
+  if (!pk.marker) {
+    pk.marker = L.marker([lat, lng], { draggable: true }).addTo(pk.map);
+    pk.marker.on("dragend", () => { const ll = pk.marker.getLatLng(); setPin(p, ll.lat, ll.lng, true); });
+  } else pk.marker.setLatLng([lat, lng]);
+  if (zoom) pk.map.setView([lat, lng], zoom); else pk.map.panTo([lat, lng]);
+  $("#" + p + "-found").innerHTML = precisionBox(precise);
+}
+function initPicker(p, d) {
+  destroyPicker(p);
+  const el = $("#" + p + "-map"); if (!el || !window.L) return;
+  const center = hasPos(d) ? [d.lat, d.lng] : hasPos(S.depot) ? [S.depot.lat, S.depot.lng] : [41.117, 16.87];
+  const m = L.map(el, { zoomControl: true });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(m);
+  m.setView(center, hasPos(d) ? 17 : 11);
+  pickers[p] = { map: m, marker: null, timer: null, seq: 0, results: [] };
+  if (hasPos(d)) setPin(p, d.lat, d.lng, !!d.precisa);
+  m.on("click", ev => setPin(p, ev.latlng.lat, ev.latlng.lng, true));
+  setTimeout(() => m.invalidateSize(), 60);
+}
+const KIND = { venue: "Attività", address: "Indirizzo", street: "Via", locality: "Paese", localadmin: "Comune", neighbourhood: "Zona", county: "Provincia" };
+function showSug(p, html) { const ul = $("#" + p + "-sug"); if (ul) ul.innerHTML = html; }
+async function searchPlaces(p, text) {
+  const pk = pickers[p]; if (!pk) return;
+  const coords = parseCoords(text);
+  if (coords) { setPin(p, coords.lat, coords.lng, true, 17); showSug(p, `<li class="msg">Posizione presa dalle coordinate del link.</li>`); return; }
+  let q = text;
+  if (/https?:\/\//i.test(text)) {
+    q = text.replace(/https?:\/\/\S+/gi, " ").replace(/\s+/g, " ").trim();
+    if (q.length < 3) { showSug(p, `<li class="msg">Questo link non contiene la posizione. In Google Maps copia anche nome e indirizzo del posto, oppure tieni premuto sul punto e copia le coordinate.</li>`); return; }
+  }
+  if (q.length < 3) { showSug(p, ""); return; }
+  if (!S.key) { showSug(p, `<li class="msg">Per cercare serve la chiave in Impostazioni. Intanto puoi toccare la mappa nel punto giusto.</li>`); return; }
+  const seq = ++pk.seq;
+  const params = new URLSearchParams({ api_key: S.key, text: q, "boundary.country": "IT", size: "6", lang: "it", layers: "venue,address,street,locality,localadmin,neighbourhood" });
+  if (hasPos(S.depot)) { params.set("focus.point.lat", S.depot.lat); params.set("focus.point.lon", S.depot.lng); }
+  showSug(p, `<li class="msg">Cerco…</li>`);
+  try {
+    const data = await ors("/geocode/autocomplete?" + params.toString());
+    if (seq !== pk.seq || !pickers[p]) return;
+    pk.results = (data.features || []).map(f => ({ lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], pr: f.properties }));
+    if (!pk.results.length) { showSug(p, `<li class="msg">Nessun risultato. Prova a scrivere solo via e paese, oppure tocca la mappa nel punto giusto.</li>`); return; }
+    showSug(p, pk.results.map((r, i) => `<li><button type="button" data-act="pick-sug" data-prefix="${p}" data-i="${i}"><span class="kind">${KIND[r.pr.layer] || "Luogo"}</span><span>${esc(r.pr.label)}</span></button></li>`).join(""));
+  } catch (err) { if (seq === pk.seq) showSug(p, `<li class="msg">${esc(errMsg(err))}</li>`); }
+}
+function pickResult(p, i) {
+  const pk = pickers[p], r = pk?.results[i]; if (!r) return;
+  const pr = r.pr, precise = pr.layer === "venue" || pr.layer === "address";
+  setPin(p, r.lat, r.lng, precise, precise ? 18 : pr.layer === "street" ? 16 : 14);
+  const street = [pr.street, pr.housenumber].filter(Boolean).join(" ");
+  if (street) $("#" + p + "-ind").value = street;
+  const city = pr.locality || pr.localadmin || pr.county || "";
+  if (city) $("#" + p + "-citta").value = city;
+  const nome = $("#" + p + "-nome");
+  if (nome && !nome.value.trim() && pr.layer === "venue") nome.value = pr.name;
+  showSug(p, ""); $("#" + p + "-q").value = "";
 }
 
 // ---------- sheets ----------
@@ -519,7 +594,8 @@ function openClientSheet(client, fromStopKey) {
     <button class="btn primary block" data-act="save-client">Salva cliente</button>
     ${client ? `<div id="del-zone"><button class="btn small danger" data-act="del-client">Elimina cliente</button></div>` : ""}
   </div></div>`;
-  $("#c-nome").focus();
+  initPicker("c", d);
+  if (!client && d.nome) { const q = $("#c-q"); q.value = [d.nome, d.citta].filter(Boolean).join(" "); searchPlaces("c", q.value); }
 }
 function openPickSheet(stopKey) {
   const s = S.giro.stops.find(x => x.key === stopKey);
@@ -532,7 +608,7 @@ function openPickSheet(stopKey) {
     <button class="btn primary block" data-act="pick-confirm">Collega</button>
   </div></div>`;
 }
-const closeSheet = () => { $("#sheet-root").innerHTML = ""; sheetCtx = null; };
+const closeSheet = () => { destroyPicker("c"); $("#sheet-root").innerHTML = ""; sheetCtx = null; };
 function linkStopTo(stopKey, clientId) {
   const s = S.giro.stops.find(x => x.key === stopKey); const c = clientById(clientId); if (!s || !c) return;
   s.clientId = c.id; s.suggestId = null;
@@ -568,28 +644,16 @@ document.addEventListener("click", async e => {
     case "new-client": openClientSheet(null, key || null); break;
     case "edit-client": openClientSheet(clientById(t.dataset.id)); break;
     case "sheet-close": case "sheet-close-bg": closeSheet(); break;
-    case "find": {
-      t.disabled = true; t.innerHTML = '<span class="spinner"></span> Cerco…';
-      try { await findInto(t.dataset.prefix); } catch (err) { toast(errMsg(err)); }
-      t.disabled = false; t.textContent = "Trova dall'indirizzo"; break;
-    }
+    case "pick-sug": pickResult(t.dataset.prefix, +t.dataset.i); break;
     case "check-map": {
       const d = readPlace(t.dataset.prefix);
       if (!hasPos(d) && !d.indirizzo && !d.citta) { toast("Inserisci un indirizzo o una posizione."); return; }
       window.open(searchUrl(d), "_blank", "noopener"); break;
     }
     case "save-client": {
-      let d = readPlace("c");
+      const d = readPlace("c");
       if (!d.nome) { toast("Il nome è obbligatorio."); return; }
-      if ($("#c-pos").value.trim() && !hasPos(d)) { toast("Non riesco a leggere la posizione: incolla due numeri tipo 41.0952, 16.6890."); return; }
-      if (!hasPos(d)) {
-        if (!d.citta) { toast("Inserisci almeno la città."); return; }
-        t.disabled = true; t.innerHTML = '<span class="spinner"></span> Cerco la posizione…';
-        try { await findInto("c"); } catch (err) { toast(errMsg(err)); }
-        t.disabled = false; t.textContent = "Salva cliente";
-        d = readPlace("c");
-        if (!hasPos(d)) return; // message already shown; let him fix and save again
-      }
+      if (!hasPos(d)) { toast("Indica dove si trova: cerca il posto oppure tocca la mappa nel punto di scarico."); $("#c-q").focus(); return; }
       const c = { id: sheetCtx.id || uid(), ...d };
       const i = S.clients.findIndex(x => x.id === c.id); if (i >= 0) S.clients[i] = c; else S.clients.push(c);
       saveClients();
@@ -606,12 +670,8 @@ document.addEventListener("click", async e => {
       closeSheet(); toast("Cliente eliminato."); render(); break;
     }
     case "save-depot": {
-      let d = readPlace("d");
-      if (!hasPos(d)) {
-        if (!S.key) { toast("Prima salva la chiave qui sotto, oppure incolla le coordinate del deposito."); return; }
-        try { await findInto("d"); } catch (err) { toast(errMsg(err)); return; }
-        d = readPlace("d"); if (!hasPos(d)) return;
-      }
+      const d = readPlace("d");
+      if (!hasPos(d)) { toast("Indica dove si trova il deposito: cercalo oppure tocca la mappa nel punto giusto."); return; }
       d.nome = d.nome || "Deposito"; S.depot = d; ls.set("giro.deposito", d);
       S.giro.ordered = false; saveGiro(); toast("Deposito salvato."); break;
     }
@@ -674,9 +734,14 @@ document.addEventListener("change", e => {
 });
 document.addEventListener("input", e => {
   if (e.target.id === "c-search") { const pos = e.target.selectionStart; render(); const n = $("#c-search"); n.focus(); n.setSelectionRange(pos, pos); }
-  if (/-pos$/.test(e.target.id)) { const pr = $("#" + e.target.id.replace("-pos", "-precisa")); if (pr) pr.value = "1"; } // pasted coordinates are exact
+  const qm = e.target.id.match(/^(c|d)-q$/);
+  if (qm) { const p = qm[1], pk = pickers[p]; if (!pk) return; clearTimeout(pk.timer); const val = e.target.value.trim(); pk.timer = setTimeout(() => searchPlaces(p, val), parseCoords(val) || /https?:\/\//.test(val) ? 0 : 400); }
 });
-document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetCtx) closeSheet(); });
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && sheetCtx) closeSheet();
+  const qm = e.target.id?.match(/^(c|d)-q$/);
+  if (qm && e.key === "Enter") { e.preventDefault(); const pk = pickers[qm[1]]; if (pk?.results.length && $("#" + qm[1] + "-sug button")) pickResult(qm[1], 0); else searchPlaces(qm[1], e.target.value.trim()); }
+});
 
 S.giro.stops.forEach(st => { if (st.clientId && !clientById(st.clientId)) { st.clientId = null; S.giro.ordered = false; } });
 if (S.giro.ordered && !S.giro.route) S.giro.ordered = false;
