@@ -1,0 +1,687 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#24333f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Il Giro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+:root {
+  --bg: #eef1f4; --surface: #ffffff; --ink: #17212b; --muted: #5b6875; --line: #d5dce3;
+  --road: #24333f; --road-ink: #f3f6f8; --accent: #e8a200; --accent-ink: #1d1600;
+  --ok: #1f7a4d; --ok-soft: #e1f2e9; --warn: #9a5b00; --warn-soft: #fbefd6; --bad: #b3261e;
+  --font-display: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Barlow", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #11181e; --surface: #1a232b; --ink: #e8edf1; --muted: #9aa7b3; --line: #2c3842;
+    --road: #0b1116; --road-ink: #e8edf1; --accent: #f2b31c; --accent-ink: #1d1600;
+    --ok: #5cc994; --ok-soft: #173326; --warn: #f0b75c; --warn-soft: #3a2a10; --bad: #ff8a80;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 17px; line-height: 1.45; padding-bottom: env(safe-area-inset-bottom, 0px); }
+.wrap { max-width: 640px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { position: sticky; top: 0; z-index: 500; background: var(--road); color: var(--road-ink); padding-top: env(safe-area-inset-top, 0px); }
+header .wrap { padding-block: 12px 0; }
+.brand { display: flex; align-items: baseline; gap: 10px; }
+.brand h1 { font-family: var(--font-display); font-size: 30px; margin: 0; letter-spacing: .02em; text-transform: uppercase; }
+.brand .stripe { flex: 1; height: 4px; background: repeating-linear-gradient(90deg, var(--accent) 0 18px, transparent 18px 30px); align-self: center; }
+nav { display: flex; gap: 4px; margin-top: 8px; }
+nav button { flex: 1; background: transparent; color: var(--road-ink); border: 0; border-bottom: 3px solid transparent; padding: 10px 4px; font: 600 16px var(--font-body); opacity: .75; cursor: pointer; }
+nav button[aria-selected="true"] { border-bottom-color: var(--accent); opacity: 1; }
+main .wrap { padding-block: 16px 64px; display: grid; gap: 16px; }
+h2 { font-family: var(--font-display); font-size: 22px; text-transform: uppercase; letter-spacing: .03em; margin: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; min-width: 0; }
+.hint { color: var(--muted); font-size: 15px; margin: 0; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: 600 16px var(--font-body); padding: 12px 16px; border-radius: 10px; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 48px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.dark { background: var(--road); color: var(--road-ink); border-color: var(--road); }
+.btn.small { min-height: 38px; padding: 6px 12px; font-size: 15px; }
+.btn.block { width: 100%; }
+.btn.danger { color: var(--bad); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+.btn:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, nav button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+input, textarea, select { width: 100%; font: 400 17px var(--font-body); color: var(--ink); background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 12px; min-width: 0; }
+textarea { min-height: 120px; resize: vertical; }
+label { display: grid; gap: 4px; font-weight: 600; font-size: 15px; }
+label small { font-weight: 400; color: var(--muted); }
+.stops { list-style: none; margin: 0; padding: 0; }
+.stop { display: grid; grid-template-columns: 44px 1fr auto; gap: 12px; align-items: start; padding: 12px 0; border-top: 1px solid var(--line); }
+.stop:first-child { border-top: 0; }
+.num { width: 40px; height: 40px; border-radius: 50%; background: var(--road); color: var(--road-ink); display: grid; place-items: center; font: 700 20px var(--font-display); font-variant-numeric: tabular-nums; }
+.num.depot { background: var(--accent); color: var(--accent-ink); font-size: 15px; }
+.stop.done .num { background: var(--ok); }
+.stop.done .name { text-decoration: line-through; color: var(--muted); }
+.name { font-weight: 600; overflow-wrap: anywhere; }
+.addr { color: var(--muted); font-size: 15px; overflow-wrap: anywhere; }
+.meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; align-items: center; }
+.chip { font-size: 13px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.km { background: var(--bg); color: var(--muted); font-variant-numeric: tabular-nums; }
+.side { display: grid; gap: 6px; justify-items: end; }
+.iconbtn { width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); font-size: 18px; cursor: pointer; display: grid; place-items: center; }
+.iconbtn:disabled { opacity: .35; }
+.check { width: 26px; height: 26px; accent-color: var(--ok); }
+.summary { display: flex; gap: 18px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.summary b { font: 700 28px var(--font-display); display: block; line-height: 1; }
+.summary span { color: var(--muted); font-size: 14px; }
+.suggest { background: var(--warn-soft); border-radius: 10px; padding: 10px; display: grid; gap: 8px; font-size: 15px; }
+.clist { list-style: none; margin: 0; padding: 0; }
+.clist li { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); align-items: center; }
+.clist li:first-child { border-top: 0; }
+.empty { text-align: center; color: var(--muted); padding: 12px; }
+details summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
+.sheet-bg { position: fixed; inset: 0; background: rgba(10,15,20,.55); z-index: 1000; display: grid; align-items: end; justify-items: center; }
+.sheet { background: var(--surface); width: 100%; max-width: 640px; max-height: 92vh; overflow-y: auto; border-radius: 16px 16px 0 0; padding: 18px max(16px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 12px; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(16px + env(safe-area-inset-bottom, 0px)); background: var(--road); color: var(--road-ink); padding: 12px 16px; border-radius: 10px; z-index: 1100; max-width: calc(100% - 32px); font-size: 15px; box-shadow: 0 6px 20px rgba(0,0,0,.25); }
+.spinner { width: 18px; height: 18px; border: 3px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.confirm { background: var(--warn-soft); padding: 10px; border-radius: 10px; display: grid; gap: 8px; }
+#map { height: 320px; border-radius: 10px; border: 1px solid var(--line); z-index: 0; }
+.pin { background: var(--road); color: #fff; border: 2px solid #fff; border-radius: 50%; width: 28px; height: 28px; display: grid; place-items: center; font: 700 14px var(--font-display); box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.pin.dep { background: var(--accent); color: var(--accent-ink); }
+.found { background: var(--ok-soft); color: var(--ok); border-radius: 10px; padding: 8px 10px; font-size: 15px; }
+.found.warn { background: var(--warn-soft); color: var(--warn); }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div class="brand"><h1>Il Giro</h1><span class="stripe" aria-hidden="true"></span></div>
+    <nav role="tablist">
+      <button role="tab" aria-selected="true" data-view="giro">Giro di oggi</button>
+      <button role="tab" aria-selected="false" data-view="clienti">Clienti</button>
+      <button role="tab" aria-selected="false" data-view="impostazioni">Impostazioni</button>
+    </nav>
+  </div>
+</header>
+<main><div class="wrap" id="view"></div></main>
+<div id="sheet-root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(() => {
+"use strict";
+const ORS = "https://api.openrouteservice.org";
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const ls = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { toast("Memoria del telefono piena o bloccata: i dati non sono stati salvati."); } }
+};
+let toastTimer;
+function toast(msg) {
+  let t = $(".toast"); if (!t) { t = document.createElement("div"); t.className = "toast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+  t.textContent = msg; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => t.hidden = true, 4200);
+}
+const norm = s => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase()
+  .replace(/\b(s\.?r\.?l\.?s?|s\.?n\.?c\.?|s\.?a\.?s\.?|s\.?p\.?a\.?|di|del|della|dei|da|e|il|lo|la|le|ditta|soc|societa)\b/g, " ")
+  .replace(/[^a-z0-9]+/g, " ").trim();
+const fmtKm = k => k.toFixed(k < 10 ? 1 : 0).replace(".", ",") + " km";
+const fmtMin = s => { const m = Math.round(s / 60); return m < 60 ? m + " min" : Math.floor(m / 60) + " h " + String(m % 60).padStart(2, "0"); };
+
+// ---------- state ----------
+const DEFAULT_TRUCK = { height: 4.0, length: 12.0, width: 2.55, weight: 26, axleload: 11.5 };
+const S = {
+  view: "giro",
+  clients: ls.get("giro.clienti", []),
+  depot: ls.get("giro.deposito", null),
+  key: ls.get("giro.orskey", ""),
+  truck: { ...DEFAULT_TRUCK, ...ls.get("giro.camion", {}) },
+  giro: ls.get("giro.oggi", { stops: [], ordered: false, route: null }),
+  busy: null, confirmClear: false,
+};
+const saveGiro = () => ls.set("giro.oggi", S.giro);
+const saveClients = () => ls.set("giro.clienti", S.clients);
+const clientById = id => S.clients.find(c => c.id === id);
+const hasPos = p => p && typeof p.lat === "number" && typeof p.lng === "number";
+
+// ---------- openrouteservice ----------
+async function ors(path, body) {
+  if (!S.key) throw { user: "Manca la chiave openrouteservice: inseriscila in Impostazioni." };
+  let res;
+  try {
+    res = await fetch(ORS + path, body
+      ? { method: "POST", headers: { "Authorization": S.key, "Content-Type": "application/json", "Accept": "application/json, application/geo+json" }, body: JSON.stringify(body) }
+      : { headers: { "Accept": "application/json" } });
+  } catch { throw { user: "Nessuna connessione a internet, oppure il servizio non risponde." }; }
+  if (res.status === 401 || res.status === 403) throw { user: "La chiave openrouteservice non è valida. Controllala in Impostazioni." };
+  if (res.status === 429) throw { user: "Limite giornaliero del servizio raggiunto. Riprova più tardi o domani." };
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    const m = data?.error?.message || data?.error || "";
+    if (/routable point|could not find/i.test(m)) throw { user: "Un cliente è in un punto non raggiungibile da un camion (o la posizione è sbagliata). Controlla le posizioni.", detail: m };
+    throw { user: "Il calcolo non è riuscito. Riprova tra poco.", detail: m };
+  }
+  return data;
+}
+async function geocode(p) {
+  const text = [p.indirizzo, p.citta].filter(Boolean).join(", ");
+  const q = new URLSearchParams({ api_key: S.key, text, "boundary.country": "IT", size: "1", lang: "it" });
+  if (hasPos(S.depot)) { q.set("focus.point.lat", S.depot.lat); q.set("focus.point.lon", S.depot.lng); }
+  const data = await ors("/geocode/search?" + q.toString());
+  const f = data?.features?.[0]; if (!f) return null;
+  const [lng, lat] = f.geometry.coordinates; const layer = f.properties.layer;
+  return { lat, lng, label: f.properties.label, precise: layer === "address" || layer === "venue" || layer === "street" };
+}
+function restrictions() {
+  const t = S.truck;
+  return { height: +t.height, length: +t.length, width: +t.width, weight: +t.weight, axleload: +t.axleload };
+}
+
+// ---------- matching ----------
+function similarity(a, b) {
+  a = norm(a); b = norm(b); if (!a || !b) return 0;
+  if (a === b) return 1;
+  if (a.includes(b) || b.includes(a)) return 0.85;
+  const ta = new Set(a.split(" ")), tb = new Set(b.split(" "));
+  let inter = 0; ta.forEach(t => { if (tb.has(t) || [...tb].some(u => t.length > 3 && u.length > 3 && (u.startsWith(t) || t.startsWith(u)))) inter++; });
+  return inter / Math.max(ta.size, tb.size);
+}
+function bestMatch(raw) {
+  let best = null, score = 0;
+  for (const c of S.clients) {
+    let s = Math.max(...[c.nome, ...(c.alias || [])].map(n => similarity(raw.nome, n)));
+    if (raw.citta && c.citta && norm(raw.citta) !== norm(c.citta)) s *= 0.8;
+    if (s > score) { score = s; best = c; }
+  }
+  return { client: best, score };
+}
+function makeStop(raw) {
+  const stop = { key: uid(), raw, clientId: null, suggestId: null, done: false };
+  const { client, score } = bestMatch(raw);
+  if (client && score >= 0.8) stop.clientId = client.id;
+  else if (client && score >= 0.45) stop.suggestId = client.id;
+  return stop;
+}
+const stopPlace = s => s.clientId ? clientById(s.clientId) : null;
+
+// ---------- coordinates ----------
+function parseCoords(text) {
+  const t = String(text || "");
+  const m = t.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || t.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/) || t.match(/(-?\d{1,2}\.\d{3,})\s*[,; ]\s*(-?\d{1,3}\.\d{3,})/);
+  if (!m) return null;
+  const lat = parseFloat(m[1]), lng = parseFloat(m[2]);
+  if (Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+  return { lat, lng };
+}
+
+// ---------- order: start at depot, visit all, end anywhere (on truck road times) ----------
+function bestOrder(M) { // M: (n+1)x(n+1) matrix, index 0 = depot
+  const n = M.length - 1; if (n <= 1) return n ? [0] : [];
+  const D = (a, b) => M[a + 1][b + 1], S0 = i => M[0][i + 1];
+  if (n <= 13) {
+    const FULL = 1 << n, dp = new Float64Array(FULL * n).fill(Infinity), par = new Int8Array(FULL * n).fill(-1);
+    for (let i = 0; i < n; i++) dp[(1 << i) * n + i] = S0(i);
+    for (let m = 1; m < FULL; m++) for (let j = 0; j < n; j++) {
+      const v = dp[m * n + j]; if (!(m & (1 << j)) || v === Infinity) continue;
+      for (let k = 0; k < n; k++) { if (m & (1 << k)) continue; const nm = m | (1 << k), nv = v + D(j, k); if (nv < dp[nm * n + k]) { dp[nm * n + k] = nv; par[nm * n + k] = j; } }
+    }
+    let last = 0, m = FULL - 1; for (let j = 1; j < n; j++) if (dp[m * n + j] < dp[m * n + last]) last = j;
+    const order = []; while (last !== -1) { order.push(last); const p = par[m * n + last]; m ^= (1 << last); last = p; }
+    return order.reverse();
+  }
+  const left = new Set([...Array(n).keys()]); const order = []; let cur = -1;
+  while (left.size) { let best = -1, bd = Infinity; left.forEach(i => { const d = cur < 0 ? S0(i) : D(cur, i); if (d < bd) { bd = d; best = i; } }); order.push(best); left.delete(best); cur = best; }
+  const cost = o => o.reduce((s, x, i) => s + (i ? D(o[i - 1], x) : S0(x)), 0);
+  let improved = true, bestC = cost(order);
+  while (improved) { improved = false;
+    for (let i = 0; i < n - 1; i++) for (let k = i + 1; k < n; k++) { const o = order.slice(0, i).concat(order.slice(i, k + 1).reverse(), order.slice(k + 1)); const c = cost(o); if (c + 1e-9 < bestC) { order.splice(0, n, ...o); bestC = c; improved = true; } } }
+  return order;
+}
+async function computeRoute() {
+  const places = S.giro.stops.map(stopPlace);
+  const locs = [S.depot, ...places].map(p => [p.lng, p.lat]);
+  const mx = await ors("/v2/matrix/driving-hgv", { locations: locs, metrics: ["duration", "distance"], units: "km" });
+  const M = mx.durations.map(r => r.map(v => v == null ? 1e9 : v));
+  if (M.some(r => r.some(v => v >= 1e9))) throw { user: "Uno o più clienti non sono raggiungibili su strada con il camion. Controlla le loro posizioni." };
+  const order = bestOrder(M);
+  S.giro.stops = order.map(i => S.giro.stops[i]);
+  await refreshRoute();
+}
+async function refreshRoute() { // full truck route with the vehicle's limits, for the map and the totals
+  const places = S.giro.stops.map(stopPlace);
+  const coords = [S.depot, ...places].map(p => [p.lng, p.lat]);
+  const gj = await ors("/v2/directions/driving-hgv/geojson", {
+    coordinates: coords, units: "km", language: "it", instructions: false, radiuses: coords.map(() => 500),
+    options: { vehicle_type: "hgv", profile_params: { restrictions: restrictions() } }
+  });
+  const f = gj.features[0];
+  S.giro.route = {
+    line: f.geometry.coordinates.map(([lng, lat]) => [+lat.toFixed(5), +lng.toFixed(5)]),
+    km: f.properties.summary.distance, sec: f.properties.summary.duration,
+    legs: (f.properties.segments || []).map(s => ({ km: s.distance, sec: s.duration }))
+  };
+  S.giro.ordered = true; saveGiro();
+}
+
+// ---------- Google Maps links ----------
+const mapsLoc = p => `${p.lat.toFixed(6)},${p.lng.toFixed(6)}`;
+function dirUrl(origin, list) {
+  const u = new URLSearchParams({ api: "1", travelmode: "driving" });
+  if (origin) u.set("origin", mapsLoc(origin));
+  u.set("destination", mapsLoc(list[list.length - 1]));
+  if (list.length > 1) u.set("waypoints", list.slice(0, -1).map(mapsLoc).join("|"));
+  return "https://www.google.com/maps/dir/?" + u.toString();
+}
+function legs(origin, list) {
+  const out = []; let o = origin;
+  for (let i = 0; i < list.length; i += 10) { const chunk = list.slice(i, i + 10); out.push({ from: i + 1, to: i + chunk.length, url: dirUrl(o, chunk) }); o = chunk[chunk.length - 1]; }
+  return out;
+}
+const searchUrl = p => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(hasPos(p) ? mapsLoc(p) : [p.indirizzo, p.citta].filter(Boolean).join(", "));
+
+// ---------- map ----------
+let map = null;
+function drawMap() {
+  const el = $("#map"); if (!el || !window.L || !S.giro.route) return;
+  if (map) { map.remove(); map = null; }
+  map = L.map(el, { zoomControl: true, attributionControl: true });
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+  const line = L.polyline(S.giro.route.line, { color: "#e8a200", weight: 6, opacity: .9 }).addTo(map);
+  const icon = (txt, cls) => L.divIcon({ className: "", html: `<div class="pin ${cls}">${txt}</div>`, iconSize: [28, 28], iconAnchor: [14, 14] });
+  L.marker([S.depot.lat, S.depot.lng], { icon: icon("D", "dep") }).addTo(map);
+  S.giro.stops.forEach((s, i) => { const p = stopPlace(s); if (p) L.marker([p.lat, p.lng], { icon: icon(i + 1, "") }).addTo(map).bindPopup(esc(p.nome)); });
+  map.fitBounds(line.getBounds(), { padding: [20, 20] });
+}
+
+// ---------- rendering ----------
+function render() {
+  document.querySelectorAll("nav button").forEach(b => b.setAttribute("aria-selected", String(b.dataset.view === S.view)));
+  if (map) { map.remove(); map = null; }
+  const v = $("#view");
+  v.innerHTML = S.view === "giro" ? viewGiro() : S.view === "clienti" ? viewClienti() : viewImpostazioni();
+  if (S.view === "giro" && S.giro.ordered) drawMap();
+}
+function chipFor(s) {
+  const c = stopPlace(s);
+  if (!c) return `<span class="chip warn">Da completare</span>`;
+  if (!hasPos(c)) return `<span class="chip warn">Senza posizione</span>`;
+  if (!c.precisa) return `<span class="chip ok">In anagrafica</span><span class="chip warn">Posizione approssimativa</span>`;
+  return `<span class="chip ok">In anagrafica</span>`;
+}
+function setupMissing() {
+  const miss = [];
+  if (!S.key) miss.push("la chiave gratuita del servizio di calcolo");
+  if (!hasPos(S.depot)) miss.push("il deposito");
+  return miss;
+}
+function viewGiro() {
+  const g = S.giro, stops = g.stops; let h = "";
+  const miss = setupMissing();
+  if (miss.length) h += `<section class="panel"><h2>Prima di iniziare</h2><p class="hint">Manca ${miss.join(" e ")}. Si imposta una volta sola.</p><button class="btn primary" data-act="go-imp">Vai a Impostazioni</button></section>`;
+
+  if (!g.ordered) {
+    const unresolved = stops.filter(s => !stopPlace(s));
+    h += `<section class="panel">
+      <div class="row" style="justify-content:space-between"><h2>Clienti di oggi${stops.length ? " · " + stops.length : ""}</h2>${stops.length ? `<button class="btn small danger" data-act="clear">Svuota</button>` : ""}</div>
+      ${S.confirmClear ? confirmBox() : ""}
+      ${stops.length ? (unresolved.length ? `<p class="hint">${unresolved.length === 1 ? "1 cliente non è" : unresolved.length + " clienti non sono"} in anagrafica. Completali una volta sola: dal prossimo giro li riconosco da solo.</p>` : `<p class="hint">Tutti i clienti sono riconosciuti.</p>`) : `<p class="hint">Aggiungi i clienti del giro: scegli quelli già salvati oppure scrivi i nomi, uno per riga.</p>`}
+      ${stops.length ? `<ul class="stops">${stops.map(stopRowPlain).join("")}</ul>` : ""}
+      ${S.clients.length ? addFromRegistry() : ""}
+      <details ${!S.clients.length ? "open" : ""}>
+        <summary>Scrivi i nomi dalla lista</summary>
+        <div style="display:grid;gap:8px;margin-top:8px">
+          <label for="manual-in">Un cliente per riga <small>Nome, eventualmente seguito da " - città"</small></label>
+          <textarea id="manual-in" placeholder="Bar Centrale - Bitonto&#10;Market Rossi - Molfetta"></textarea>
+          <button class="btn" data-act="manual">Aggiungi al giro</button>
+        </div>
+      </details>
+    </section>
+    ${stops.length ? `<button class="btn primary block" data-act="calc" ${unresolved.length || miss.length || S.busy ? "disabled" : ""}>${S.busy === "calc" ? '<span class="spinner"></span> Calcolo il percorso per camion…' : "Calcola il percorso per camion"}</button>` : ""}`;
+    return h;
+  }
+
+  const places = stops.map(stopPlace), r = g.route;
+  const remaining = stops.filter(s => !s.done).map(stopPlace);
+  const anyDone = stops.some(s => s.done);
+  const lg = anyDone ? legs(null, remaining) : legs(S.depot, places);
+  const t = S.truck;
+  h += `<section class="panel">
+    <div class="row" style="justify-content:space-between"><h2>Percorso di oggi</h2><button class="btn small danger" data-act="clear">Nuovo giro</button></div>
+    ${S.confirmClear ? confirmBox() : ""}
+    <div class="summary">
+      <div><b>${stops.length}</b><span>fermate</span></div>
+      <div><b>${fmtKm(r.km)}</b><span>su strada, andata</span></div>
+      <div><b>${fmtMin(r.sec)}</b><span>di guida, stima</span></div>
+    </div>
+    <p class="hint">Calcolato per camion: ${String(t.length).replace(".", ",")} m, ${String(t.height).replace(".", ",")} m di altezza, ${t.weight} t.</p>
+    <div id="map" role="img" aria-label="Mappa del percorso per camion"></div>
+    <div style="display:grid;gap:8px">
+      ${remaining.length ? lg.map(l => `<a class="btn primary block" href="${esc(l.url)}" target="_blank" rel="noopener">${anyDone ? "Apri le fermate rimanenti in Maps" : "Apri il percorso in Google Maps"}${lg.length > 1 ? ` · fermate ${l.from}–${l.to}` : ""}</a>`).join("") : `<p class="hint" style="text-align:center">Tutte le consegne sono fatte. Buon rientro.</p>`}
+      ${lg.length > 1 ? `<p class="hint">Google Maps accetta al massimo 10 fermate per volta: apri la seconda tratta quando hai finito la prima.</p>` : ""}
+      <p class="hint">Google Maps naviga come per un'auto e tra una fermata e l'altra può proporre strade diverse da quella gialla sulla mappa. Se la strada non è adatta al camion, segui quella della mappa.</p>
+    </div>
+  </section>
+  <section class="panel">
+    <ul class="stops">
+      <li class="stop"><div class="num depot">DEP</div><div><div class="name">${esc(S.depot.nome || "Deposito")}</div><div class="addr">${esc([S.depot.indirizzo, S.depot.citta].filter(Boolean).join(", "))}</div></div><div></div></li>
+      ${stops.map((s, i) => stopRowOrdered(s, i, r.legs[i])).join("")}
+    </ul>
+    <p class="hint">Puoi spostare una fermata con le frecce (per esempio se un cliente apre più tardi): km e tempi si ricalcolano.</p>
+  </section>
+  <button class="btn" data-act="unorder">Modifica la lista dei clienti</button>`;
+  return h;
+}
+function confirmBox() {
+  return `<div class="confirm"><span>Cancellare il giro di oggi? L'anagrafica clienti resta com'è.</span><div class="row"><button class="btn small danger" data-act="clear-yes">Sì, cancella</button><button class="btn small" data-act="clear-no">Annulla</button></div></div>`;
+}
+function addFromRegistry() {
+  const inGiro = new Set(S.giro.stops.map(s => s.clientId));
+  const opts = [...S.clients].filter(c => !inGiro.has(c.id)).sort((a, b) => a.nome.localeCompare(b.nome)).map(c => `<option value="${esc(c.id)}">${esc(c.nome)}${c.citta ? " – " + esc(c.citta) : ""}</option>`).join("");
+  return `<div class="row"><label for="add-reg" style="flex:1 1 200px">Aggiungi un cliente salvato<select id="add-reg"><option value="">Scegli…</option>${opts}</select></label><button class="btn" data-act="add-reg" style="align-self:end">Aggiungi</button></div>`;
+}
+function stopRowPlain(s, i) {
+  const p = stopPlace(s), raw = s.raw;
+  const sug = !p && s.suggestId && clientById(s.suggestId);
+  return `<li class="stop">
+    <div class="num">${i + 1}</div>
+    <div style="min-width:0">
+      <div class="name">${esc(p?.nome || raw.nome)}</div>
+      <div class="addr">${esc([p?.indirizzo ?? raw.indirizzo, p?.citta ?? raw.citta].filter(Boolean).join(", ") || "Indirizzo da inserire")}</div>
+      ${p && norm(p.nome) !== norm(raw.nome) ? `<div class="addr">Nella lista: “${esc(raw.nome)}”</div>` : ""}
+      <div class="meta">${chipFor(s)}</div>
+      ${sug ? `<div class="suggest" style="margin-top:8px"><span>Forse è <b>${esc(sug.nome)}</b>${sug.citta ? " di " + esc(sug.citta) : ""}?</span><div class="row"><button class="btn small" data-act="link-sug" data-key="${s.key}">Sì, è lui</button><button class="btn small" data-act="new-client" data-key="${s.key}">No, è un cliente nuovo</button></div></div>` : ""}
+      ${!p && !sug ? `<div class="row" style="margin-top:8px"><button class="btn small primary" data-act="new-client" data-key="${s.key}">Aggiungi in anagrafica</button>${S.clients.length ? `<button class="btn small" data-act="link-pick" data-key="${s.key}">È un cliente già salvato</button>` : ""}</div>` : ""}
+      ${p && !hasPos(p) ? `<div class="row" style="margin-top:8px"><button class="btn small" data-act="edit-client" data-id="${p.id}">Completa la scheda</button></div>` : ""}
+    </div>
+    <div class="side"><button class="iconbtn" aria-label="Togli dal giro" data-act="remove-stop" data-key="${s.key}">✕</button></div>
+  </li>`;
+}
+function stopRowOrdered(s, i, leg) {
+  const p = stopPlace(s);
+  const nav = "https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=" + encodeURIComponent(mapsLoc(p));
+  return `<li class="stop ${s.done ? "done" : ""}">
+    <div class="num">${i + 1}</div>
+    <div style="min-width:0">
+      <div class="name">${esc(p.nome)}</div>
+      <div class="addr">${esc([p.indirizzo, p.citta].filter(Boolean).join(", "))}</div>
+      ${p.note ? `<div class="addr">Nota: ${esc(p.note)}</div>` : ""}
+      <div class="meta">${leg ? `<span class="chip km">+${fmtKm(leg.km)} · ${fmtMin(leg.sec)}</span>` : ""}${p.precisa ? "" : `<span class="chip warn">Posizione approssimativa</span>`}
+        <label class="row" style="font-weight:600;gap:6px;margin-left:auto"><input type="checkbox" class="check" data-act="done" data-key="${s.key}" ${s.done ? "checked" : ""}> Consegnato</label></div>
+      <div class="row" style="margin-top:8px"><a class="btn small dark" href="${esc(nav)}" target="_blank" rel="noopener">Naviga qui</a></div>
+    </div>
+    <div class="side">
+      <button class="iconbtn" aria-label="Sposta su" data-act="up" data-key="${s.key}" ${i === 0 || S.busy ? "disabled" : ""}>↑</button>
+      <button class="iconbtn" aria-label="Sposta giù" data-act="down" data-key="${s.key}" ${i === S.giro.stops.length - 1 || S.busy ? "disabled" : ""}>↓</button>
+    </div>
+  </li>`;
+}
+function viewClienti() {
+  const q = norm($("#c-search")?.value || "");
+  const list = [...S.clients].sort((a, b) => a.nome.localeCompare(b.nome)).filter(c => !q || norm([c.nome, c.citta, ...(c.alias || [])].join(" ")).includes(q));
+  return `<section class="panel">
+    <div class="row" style="justify-content:space-between"><h2>Anagrafica · ${S.clients.length}</h2><button class="btn small primary" data-act="new-client">Nuovo cliente</button></div>
+    <p class="hint">Ogni cliente salvato viene riconosciuto automaticamente nei giri successivi.</p>
+    ${S.clients.length > 6 ? `<input id="c-search" type="search" placeholder="Cerca per nome o città" value="${esc($("#c-search")?.value || "")}">` : ""}
+    ${list.length ? `<ul class="clist">${list.map(c => `<li><div style="min-width:0"><div class="name">${esc(c.nome)}</div><div class="addr">${esc([c.indirizzo, c.citta].filter(Boolean).join(", ") || "Indirizzo mancante")}</div>
+      <div class="meta">${hasPos(c) ? (c.precisa ? '<span class="chip ok">Posizione precisa</span>' : '<span class="chip warn">Posizione approssimativa</span>') : '<span class="chip warn">Senza posizione</span>'}</div></div>
+      <button class="btn small" data-act="edit-client" data-id="${c.id}">Modifica</button></li>`).join("")}</ul>`
+      : `<p class="empty">${S.clients.length ? "Nessun cliente trovato." : "Nessun cliente ancora. Si riempie man mano che completi i clienti dei giri, oppure aggiungili qui."}</p>`}
+  </section>`;
+}
+function viewImpostazioni() {
+  const d = S.depot || {}, t = S.truck;
+  return `<section class="panel">
+    <h2>Deposito</h2>
+    <p class="hint">Il punto da cui parti ogni mattina.</p>
+    ${placeFields("d", d, false)}
+    <button class="btn primary" data-act="save-depot">Salva il deposito</button>
+  </section>
+  <section class="panel">
+    <h2>Camion</h2>
+    <p class="hint">Servono per evitare strade con limiti di altezza, peso o lunghezza. I valori sono tipici di una motrice da 18 pedane: correggili con quelli del libretto.</p>
+    <div class="grid2">
+      <label for="t-length">Lunghezza (m)<input id="t-length" inputmode="decimal" value="${t.length}"></label>
+      <label for="t-height">Altezza (m)<input id="t-height" inputmode="decimal" value="${t.height}"></label>
+      <label for="t-width">Larghezza (m)<input id="t-width" inputmode="decimal" value="${t.width}"></label>
+      <label for="t-weight">Peso a pieno carico (t)<input id="t-weight" inputmode="decimal" value="${t.weight}"></label>
+      <label for="t-axle">Peso per asse (t)<input id="t-axle" inputmode="decimal" value="${t.axleload}"></label>
+    </div>
+    <button class="btn primary" data-act="save-truck">Salva il camion</button>
+  </section>
+  <section class="panel">
+    <h2>Chiave del servizio di calcolo</h2>
+    <p class="hint">Il percorso per camion lo calcola openrouteservice, gratuito. Serve una chiave personale: registrati su openrouteservice.org, vai su Dashboard, crea un token e incollalo qui.</p>
+    <label for="ors-key">Chiave<input id="ors-key" value="${esc(S.key)}" autocomplete="off" spellcheck="false" placeholder="Incolla qui la chiave"></label>
+    <button class="btn primary" data-act="save-key">Salva la chiave</button>
+  </section>
+  <section class="panel">
+    <h2>Copia di sicurezza</h2>
+    <p class="hint">Clienti, deposito e camion sono salvati solo su questo telefono. Scarica ogni tanto una copia: serve se cambi telefono o cancelli i dati del browser.</p>
+    <div class="row"><button class="btn" data-act="export">Scarica la copia</button><label class="btn" for="import-in" style="cursor:pointer">Ripristina da copia</label><input id="import-in" type="file" accept="application/json,.json" hidden></div>
+  </section>
+  <section class="panel">
+    <h2>Posizione precisa di un cliente</h2>
+    <p class="hint">Se l'indirizzo non basta (zona industriale, ingresso sul retro): apri Google Maps, tieni premuto il dito sul punto esatto di scarico, tocca i due numeri che compaiono in alto per copiarli e incollali nel campo Posizione del cliente.</p>
+  </section>`;
+}
+function placeFields(p, d, isClient) {
+  return `
+    <label for="${p}-nome">Nome${isClient ? " del cliente" : ""}<input id="${p}-nome" value="${esc(d.nome || "")}" placeholder="${isClient ? "Es. Bar Centrale" : "Es. Magazzino"}"></label>
+    ${isClient ? `<label for="${p}-alias">Altri nomi <small>Come può comparire nella lista, separati da virgola</small><input id="${p}-alias" value="${esc((d.alias || []).join(", "))}"></label>` : ""}
+    <label for="${p}-ind">Indirizzo<input id="${p}-ind" value="${esc(d.indirizzo || "")}" placeholder="Via e numero civico"></label>
+    <label for="${p}-citta">Città<input id="${p}-citta" value="${esc(d.citta || "")}" placeholder="Es. Bitonto"></label>
+    <label for="${p}-pos">Posizione <small>Si trova da sola dall'indirizzo, oppure incolla le coordinate da Google Maps</small><input id="${p}-pos" value="${hasPos(d) ? `${d.lat}, ${d.lng}` : ""}" placeholder="41.0952, 16.6890" inputmode="decimal"></label>
+    <input type="hidden" id="${p}-precisa" value="${d.precisa ? "1" : ""}">
+    <div id="${p}-found"></div>
+    <div class="row">
+      <button class="btn small" data-act="find" data-prefix="${p}">Trova dall'indirizzo</button>
+      <button class="btn small" data-act="check-map" data-prefix="${p}">Controlla su Maps</button>
+    </div>
+    ${isClient ? `<label for="${p}-note">Note per la consegna<input id="${p}-note" value="${esc(d.note || "")}" placeholder="Es. scarico dal retro, chiude alle 13"></label>` : ""}`;
+}
+function readPlace(p) {
+  const v = id => ($("#" + p + "-" + id)?.value || "").trim();
+  const pos = parseCoords(v("pos"));
+  const out = { nome: v("nome"), indirizzo: v("ind"), citta: v("citta") };
+  if (p === "c") { out.note = v("note"); out.alias = v("alias").split(",").map(s => s.trim()).filter(Boolean); }
+  if (pos) { out.lat = pos.lat; out.lng = pos.lng; out.precisa = v("precisa") === "1"; }
+  return out;
+}
+async function findInto(p) {
+  const d = readPlace(p);
+  if (!d.indirizzo && !d.citta) { toast("Scrivi almeno indirizzo o città."); return null; }
+  const r = await geocode(d);
+  const box = $("#" + p + "-found");
+  if (!r) { if (box) box.innerHTML = `<div class="found warn">Indirizzo non trovato. Controlla com'è scritto oppure incolla le coordinate da Google Maps.</div>`; return null; }
+  $("#" + p + "-pos").value = `${r.lat.toFixed(6)}, ${r.lng.toFixed(6)}`;
+  $("#" + p + "-precisa").value = r.precise ? "1" : "";
+  if (box) box.innerHTML = `<div class="found ${r.precise ? "" : "warn"}">${r.precise ? "Trovato" : "Trovato solo in modo approssimativo"}: ${esc(r.label)}</div>`;
+  return r;
+}
+
+// ---------- sheets ----------
+let sheetCtx = null;
+function openClientSheet(client, fromStopKey) {
+  sheetCtx = { id: client?.id || null, stopKey: fromStopKey || null };
+  let d = client || {};
+  if (!client && fromStopKey) { const s = S.giro.stops.find(x => x.key === fromStopKey); d = { nome: s.raw.nome, citta: s.raw.citta }; }
+  $("#sheet-root").innerHTML = `<div class="sheet-bg" data-act="sheet-close-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="row" style="justify-content:space-between"><h2 id="sheet-h">${client ? "Modifica cliente" : "Nuovo cliente"}</h2><button class="iconbtn" aria-label="Chiudi" data-act="sheet-close">✕</button></div>
+    ${placeFields("c", d, true)}
+    <button class="btn primary block" data-act="save-client">Salva cliente</button>
+    ${client ? `<div id="del-zone"><button class="btn small danger" data-act="del-client">Elimina cliente</button></div>` : ""}
+  </div></div>`;
+  $("#c-nome").focus();
+}
+function openPickSheet(stopKey) {
+  const s = S.giro.stops.find(x => x.key === stopKey);
+  const opts = [...S.clients].sort((a, b) => a.nome.localeCompare(b.nome)).map(c => `<option value="${esc(c.id)}">${esc(c.nome)}${c.citta ? " – " + esc(c.citta) : ""}</option>`).join("");
+  sheetCtx = { stopKey };
+  $("#sheet-root").innerHTML = `<div class="sheet-bg" data-act="sheet-close-bg"><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="row" style="justify-content:space-between"><h2 id="sheet-h">Quale cliente è?</h2><button class="iconbtn" aria-label="Chiudi" data-act="sheet-close">✕</button></div>
+    <p class="hint">Nella lista c'è scritto “${esc(s.raw.nome)}”. Scegli il cliente: ricorderò anche questo nome per le prossime volte.</p>
+    <label for="pick-c">Cliente<select id="pick-c">${opts}</select></label>
+    <button class="btn primary block" data-act="pick-confirm">Collega</button>
+  </div></div>`;
+}
+const closeSheet = () => { $("#sheet-root").innerHTML = ""; sheetCtx = null; };
+function linkStopTo(stopKey, clientId) {
+  const s = S.giro.stops.find(x => x.key === stopKey); const c = clientById(clientId); if (!s || !c) return;
+  s.clientId = c.id; s.suggestId = null;
+  if (norm(s.raw.nome) !== norm(c.nome) && !(c.alias || []).some(a => norm(a) === norm(s.raw.nome))) { c.alias = [...(c.alias || []), s.raw.nome]; saveClients(); }
+  saveGiro(); render();
+}
+const errMsg = e => e?.user || "Qualcosa non ha funzionato. Riprova.";
+
+// ---------- actions ----------
+document.addEventListener("click", async e => {
+  const t = e.target.closest("[data-act], nav button"); if (!t) return;
+  if (t.matches("nav button")) { S.view = t.dataset.view; S.confirmClear = false; render(); window.scrollTo(0, 0); return; }
+  const act = t.dataset.act;
+  if (act === "sheet-close-bg" && e.target !== t) return;
+  const key = t.dataset.key, stop = key && S.giro.stops.find(x => x.key === key);
+  switch (act) {
+    case "go-imp": S.view = "impostazioni"; render(); break;
+    case "manual": {
+      const lines = ($("#manual-in").value || "").split(/\n+/).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) { toast("Scrivi almeno un cliente."); return; }
+      lines.forEach(l => { const [nome, citta] = l.split(/\s+-\s+/); S.giro.stops.push(makeStop({ nome: nome.trim(), indirizzo: "", citta: (citta || "").trim() })); });
+      saveGiro(); render(); break;
+    }
+    case "add-reg": {
+      const c = clientById($("#add-reg").value); if (!c) return;
+      S.giro.stops.push({ key: uid(), raw: { nome: c.nome, indirizzo: c.indirizzo, citta: c.citta }, clientId: c.id, done: false });
+      saveGiro(); render(); break;
+    }
+    case "remove-stop": S.giro.stops = S.giro.stops.filter(x => x.key !== key); saveGiro(); render(); break;
+    case "link-sug": linkStopTo(key, stop.suggestId); break;
+    case "link-pick": openPickSheet(key); break;
+    case "pick-confirm": { const k = sheetCtx.stopKey, id = $("#pick-c").value; closeSheet(); linkStopTo(k, id); break; }
+    case "new-client": openClientSheet(null, key || null); break;
+    case "edit-client": openClientSheet(clientById(t.dataset.id)); break;
+    case "sheet-close": case "sheet-close-bg": closeSheet(); break;
+    case "find": {
+      t.disabled = true; t.innerHTML = '<span class="spinner"></span> Cerco…';
+      try { await findInto(t.dataset.prefix); } catch (err) { toast(errMsg(err)); }
+      t.disabled = false; t.textContent = "Trova dall'indirizzo"; break;
+    }
+    case "check-map": {
+      const d = readPlace(t.dataset.prefix);
+      if (!hasPos(d) && !d.indirizzo && !d.citta) { toast("Inserisci un indirizzo o una posizione."); return; }
+      window.open(searchUrl(d), "_blank", "noopener"); break;
+    }
+    case "save-client": {
+      let d = readPlace("c");
+      if (!d.nome) { toast("Il nome è obbligatorio."); return; }
+      if ($("#c-pos").value.trim() && !hasPos(d)) { toast("Non riesco a leggere la posizione: incolla due numeri tipo 41.0952, 16.6890."); return; }
+      if (!hasPos(d)) {
+        if (!d.citta) { toast("Inserisci almeno la città."); return; }
+        t.disabled = true; t.innerHTML = '<span class="spinner"></span> Cerco la posizione…';
+        try { await findInto("c"); } catch (err) { toast(errMsg(err)); }
+        t.disabled = false; t.textContent = "Salva cliente";
+        d = readPlace("c");
+        if (!hasPos(d)) return; // message already shown; let him fix and save again
+      }
+      const c = { id: sheetCtx.id || uid(), ...d };
+      const i = S.clients.findIndex(x => x.id === c.id); if (i >= 0) S.clients[i] = c; else S.clients.push(c);
+      saveClients();
+      if (sheetCtx.stopKey) { const s = S.giro.stops.find(x => x.key === sheetCtx.stopKey); if (s) { s.clientId = c.id; s.suggestId = null; } }
+      else S.giro.stops.forEach(s => { if (!s.clientId) { const m = bestMatch(s.raw); if (m.client && m.score >= 0.8) s.clientId = m.client.id; } });
+      if (S.giro.ordered) S.giro.ordered = false;
+      saveGiro(); closeSheet(); toast("Cliente salvato."); render(); break;
+    }
+    case "del-client": $("#del-zone").innerHTML = `<div class="confirm"><span>Eliminare questo cliente dall'anagrafica?</span><div class="row"><button class="btn small danger" data-act="del-yes">Sì, elimina</button><button class="btn small" data-act="del-no">Annulla</button></div></div>`; break;
+    case "del-no": $("#del-zone").innerHTML = `<button class="btn small danger" data-act="del-client">Elimina cliente</button>`; break;
+    case "del-yes": {
+      const id = sheetCtx.id; S.clients = S.clients.filter(c => c.id !== id); saveClients();
+      S.giro.stops.forEach(s => { if (s.clientId === id) { s.clientId = null; S.giro.ordered = false; } }); saveGiro();
+      closeSheet(); toast("Cliente eliminato."); render(); break;
+    }
+    case "save-depot": {
+      let d = readPlace("d");
+      if (!hasPos(d)) {
+        if (!S.key) { toast("Prima salva la chiave qui sotto, oppure incolla le coordinate del deposito."); return; }
+        try { await findInto("d"); } catch (err) { toast(errMsg(err)); return; }
+        d = readPlace("d"); if (!hasPos(d)) return;
+      }
+      d.nome = d.nome || "Deposito"; S.depot = d; ls.set("giro.deposito", d);
+      S.giro.ordered = false; saveGiro(); toast("Deposito salvato."); break;
+    }
+    case "save-truck": {
+      const num = id => parseFloat(($("#" + id).value || "").replace(",", "."));
+      const tr = { length: num("t-length"), height: num("t-height"), width: num("t-width"), weight: num("t-weight"), axleload: num("t-axle") };
+      if (Object.values(tr).some(v => !(v > 0))) { toast("Controlla i valori: devono essere numeri maggiori di zero."); return; }
+      S.truck = tr; ls.set("giro.camion", tr); S.giro.ordered = false; saveGiro(); toast("Camion salvato."); break;
+    }
+    case "save-key": {
+      S.key = ($("#ors-key").value || "").trim(); ls.set("giro.orskey", S.key);
+      if (!S.key) { toast("Chiave rimossa."); return; }
+      t.disabled = true; t.innerHTML = '<span class="spinner"></span> Verifico…';
+      try { await geocode({ citta: "Bari" }); toast("Chiave funzionante. Salvata."); } catch (err) { toast(errMsg(err)); }
+      t.disabled = false; t.textContent = "Salva la chiave"; break;
+    }
+    case "export": {
+      const blob = new Blob([JSON.stringify({ app: "il-giro", versione: 1, data: new Date().toISOString(), clienti: S.clients, deposito: S.depot, camion: S.truck }, null, 2)], { type: "application/json" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "il-giro-copia-" + new Date().toISOString().slice(0, 10) + ".json";
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); break;
+    }
+    case "calc": {
+      S.busy = "calc"; render();
+      try { await computeRoute(); window.scrollTo(0, 0); } catch (err) { toast(errMsg(err)); if (err?.detail) console.warn(err.detail); }
+      S.busy = null; render(); break;
+    }
+    case "unorder": S.giro.ordered = false; S.giro.route = null; saveGiro(); render(); break;
+    case "up": case "down": {
+      const i = S.giro.stops.findIndex(x => x.key === key), j = act === "up" ? i - 1 : i + 1;
+      if (j < 0 || j >= S.giro.stops.length) return;
+      [S.giro.stops[i], S.giro.stops[j]] = [S.giro.stops[j], S.giro.stops[i]];
+      S.busy = "move"; render();
+      try { await refreshRoute(); } catch (err) { toast(errMsg(err)); }
+      S.busy = null; saveGiro(); render(); break;
+    }
+    case "clear": S.confirmClear = true; render(); break;
+    case "clear-no": S.confirmClear = false; render(); break;
+    case "clear-yes": S.giro = { stops: [], ordered: false, route: null }; S.confirmClear = false; saveGiro(); render(); break;
+  }
+});
+document.addEventListener("change", e => {
+  if (e.target.matches('[data-act="done"]')) {
+    const s = S.giro.stops.find(x => x.key === e.target.dataset.key); if (s) { s.done = e.target.checked; saveGiro(); render(); }
+  }
+  if (e.target.id === "import-in") {
+    const f = e.target.files?.[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const d = JSON.parse(r.result);
+        if (d.app !== "il-giro" || !Array.isArray(d.clienti)) throw 0;
+        S.clients = d.clienti; saveClients();
+        if (d.deposito) { S.depot = d.deposito; ls.set("giro.deposito", d.deposito); }
+        if (d.camion) { S.truck = { ...DEFAULT_TRUCK, ...d.camion }; ls.set("giro.camion", S.truck); }
+        toast(`Copia ripristinata: ${d.clienti.length} clienti.`); render();
+      } catch { toast("Il file non è una copia valida de Il Giro."); }
+    };
+    r.readAsText(f);
+  }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "c-search") { const pos = e.target.selectionStart; render(); const n = $("#c-search"); n.focus(); n.setSelectionRange(pos, pos); }
+  if (/-pos$/.test(e.target.id)) { const pr = $("#" + e.target.id.replace("-pos", "-precisa")); if (pr) pr.value = "1"; } // pasted coordinates are exact
+});
+document.addEventListener("keydown", e => { if (e.key === "Escape" && sheetCtx) closeSheet(); });
+
+S.giro.stops.forEach(st => { if (st.clientId && !clientById(st.clientId)) { st.clientId = null; S.giro.ordered = false; } });
+if (S.giro.ordered && !S.giro.route) S.giro.ordered = false;
+render();
+})();
+</script>
+</body>
+</html>
