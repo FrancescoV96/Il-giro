@@ -127,7 +127,7 @@ details summary { cursor: pointer; font-weight: 600; padding: 4px 0; }
 <script>
 (() => {
 "use strict";
-const ORS = "https://api.openrouteservice.org";
+const ORS = "https://api.heigit.org/openrouteservice", GEO = "https://api.heigit.org/pelias/v1";
 const $ = (s, r = document) => r.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const uid = () => "c" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -167,7 +167,7 @@ async function ors(path, body) {
   if (!S.key) throw { user: "Manca la chiave openrouteservice: inseriscila in Impostazioni." };
   let res;
   try {
-    res = await fetch(ORS + path, body
+    res = await fetch((path.startsWith("/v2/") ? ORS : GEO) + path, body
       ? { method: "POST", headers: { "Authorization": S.key, "Content-Type": "application/json", "Accept": "application/json, application/geo+json" }, body: JSON.stringify(body) }
       : { headers: { "Accept": "application/json" } });
   } catch { throw { user: "Nessuna connessione a internet, oppure il servizio non risponde." }; }
@@ -185,7 +185,7 @@ async function geocode(p) {
   const text = [p.indirizzo, p.citta].filter(Boolean).join(", ");
   const q = new URLSearchParams({ api_key: S.key, text, "boundary.country": "IT", size: "1", lang: "it" });
   if (hasPos(S.depot)) { q.set("focus.point.lat", S.depot.lat); q.set("focus.point.lon", S.depot.lng); }
-  const data = await ors("/geocode/search?" + q.toString());
+  const data = await ors("/search?" + q.toString());
   const f = data?.features?.[0]; if (!f) return null;
   const [lng, lat] = f.geometry.coordinates; const layer = f.properties.layer;
   return { lat, lng, label: f.properties.label, precise: layer === "address" || layer === "venue" || layer === "street" };
@@ -562,7 +562,7 @@ async function searchPlaces(p, text) {
   if (hasPos(S.depot)) { params.set("focus.point.lat", S.depot.lat); params.set("focus.point.lon", S.depot.lng); }
   showSug(p, `<li class="msg">Cerco…</li>`);
   try {
-    const data = await ors("/geocode/autocomplete?" + params.toString());
+    const data = await ors("/autocomplete?" + params.toString());
     if (seq !== pk.seq || !pickers[p]) return;
     pk.results = (data.features || []).map(f => ({ lng: f.geometry.coordinates[0], lat: f.geometry.coordinates[1], pr: f.properties }));
     if (!pk.results.length) { showSug(p, `<li class="msg">Nessun risultato. Prova a scrivere solo via e paese, oppure tocca la mappa nel punto giusto.</li>`); return; }
