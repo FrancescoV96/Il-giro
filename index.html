@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#24333f">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Il Giro">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <title>Il Giro</title>
@@ -746,6 +750,7 @@ document.addEventListener("keydown", e => {
 S.giro.stops.forEach(st => { if (st.clientId && !clientById(st.clientId)) { st.clientId = null; S.giro.ordered = false; } });
 if (S.giro.ordered && !S.giro.route) S.giro.ordered = false;
 render();
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
 </script>
 </body>
